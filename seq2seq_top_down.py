@@ -234,7 +234,6 @@ def evaluateRandomly(encoder, decoder, n=10):
         print('<', output_sentence)
         print('')
 
-
 if '__main__'==__name__:
     with open('deepbank-preprocessed/word_to_ix.pickle','rb') as f:
         word2index=pickle.load(f)
@@ -261,11 +260,43 @@ if '__main__'==__name__:
                 x=torch.cuda.LongTensor(x)
             else:
                 y=[]
+				tree=[]
+				stack=[]
+				index=[]
                 for word in line.strip().split("  "):
-                    index=int(word.split("-")[1])
-                    y.append(index)
-                y=torch.cuda.LongTensor(y)
+                    type=word.split("-")[0]
+					if type=="SHIFT":
+						tree.append([-1,-1,len(index)])
+						stack.append(len(tree)-1)
+						
+					elif type=="UNARY":
+						tree.append([-1,stack.pop(),len(index)])
+						stack.append(len(tree)-1)
+
+					elif type=="BINARY":
+						tree.append([stack.pop(),stack.pop(),len(index)])
+						stack.append(len(tree)-1)
+					
+					else:
+						assert(len(stack)==1)
+
+					index.append(int(word.split("-")[1]))
+				
+				stack=[tree[-1]]
+				while(len(stack)>0):
+					nodes=stack.pop()
+					y.append(index[nodes[2]])
+					if nodes[1]==-1:
+						continue
+					elif nodes[0]==-1:
+						stack.append(tree[nodes[1]])
+					else:
+						stack.append(tree[nodes[0]])
+						stack.append(tree[nodes[1]])
+
+				y=torch.cuda.LongTensor(y)
                 dataset.append((x,y))
+
             t=1-t
 
     tr=int(round(len(dataset)*0.9))
